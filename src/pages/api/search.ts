@@ -46,11 +46,29 @@ export interface LibGenBook {
   isbn: string;
   coverurl: string;
   rawCoverUrl?: string;
-  tags?: string; // Optional tags property for future support
+  tags?: string;
+  topic?: string;
+  volumeinfo?: string;
+  periodical?: string;
+  city?: string;
+  edition?: string;
+  commentary?: string;
+  dpi?: string;
+  color?: string;
+  cleaned?: string;
+  orientation?: string;
+  paginated?: string;
+  scanned?: string;
+  bookmarked?: string;
+  searchable?: string;
+  filesize_bytes?: number;
 }
 
 export interface SearchResponse {
   books: LibGenBook[];
+  totalResults?: number;
+  currentPage?: number;
+  totalPages?: number;
   error?: string;
 }
 
@@ -64,12 +82,18 @@ export default async function handler(
 
   const { 
     query, 
-    count = 10, 
+    count = 25, 
     sort_by = 'def', 
     search_in = 'def', 
     offset = 0,
     reverse = false,
-    multi_sort = [] // New parameter for multiple sorting criteria
+    topic = '',
+    year_from = '',
+    year_to = '',
+    language = '',
+    extension = '',
+    phrase = 1, // 1 = no mask, 0 = with mask
+    view = 'simple' // simple or detailed
   } = req.body;
 
   if (!query || query.trim().length === 0) {
@@ -89,9 +113,46 @@ export default async function handler(
     // Use a configurable mirror, with a fallback to libgen.is
     const mirror = process.env.LIBGEN_MIRROR || 'http://libgen.is';
     
+    // Build search query with topic filtering
+    let searchQuery = trimmedQuery;
+    
+    // If topic is specified, add it to the search
+    if (topic) {
+      // Topic search uses topicid format like in the HTML
+      if (topic.startsWith('topicid')) {
+        searchQuery = topic;
+        // Override search_in to topic when searching by topic
+        search_in = 'topic';
+      } else {
+        // Convert topic name to search term
+        searchQuery = `${trimmedQuery} ${topic}`;
+      }
+    }
+
+    // Add year filtering to query if specified
+    if (year_from || year_to) {
+      if (year_from && year_to) {
+        searchQuery += ` year:${year_from}-${year_to}`;
+      } else if (year_from) {
+        searchQuery += ` year:${year_from}-`;
+      } else if (year_to) {
+        searchQuery += ` year:-${year_to}`;
+      }
+    }
+
+    // Add language filter
+    if (language) {
+      searchQuery += ` language:${language}`;
+    }
+
+    // Add extension filter
+    if (extension) {
+      searchQuery += ` extension:${extension}`;
+    }
+    
     const options = {
       mirror,
-      query: trimmedQuery,
+      query: searchQuery,
       count: Math.min(count, 100), // Allow up to 100 results
       offset,
       sort_by,
@@ -100,7 +161,7 @@ export default async function handler(
     };
 
     // Check cache first
-    const cacheKey = getCacheKey(trimmedQuery, options);
+    const cacheKey = getCacheKey(searchQuery, options);
     const cachedResult = getFromCache(cacheKey);
     
     if (cachedResult) {
@@ -111,10 +172,11 @@ export default async function handler(
     let searchError = null;
     
     try {
-      // Increase timeout for libgen.search to 10 seconds
+      // Increase timeout for libgen.search to 15 seconds
       const searchPromise = libgen.search(options);
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Search timed out')), 10000));
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Search timed out')), 15000));
       const results = await Promise.race([searchPromise, timeoutPromise]);
+      
       // The libgen library sometimes returns a single object with a count of 0
       // or throws an error when no results are found. We need to handle both cases.
       if (Array.isArray(results)) {
@@ -126,7 +188,7 @@ export default async function handler(
       }
     } catch (e) {
       // If libgen throws (e.g. "no results" error or query too short), we'll handle it gracefully
-      console.log('libgen.search error for query "' + trimmedQuery + '":', e);
+      console.log('libgen.search error for query "' + searchQuery + '":', e);
       searchError = e;
       books = [];
       
@@ -163,6 +225,22 @@ export default async function handler(
       
       const coverUrl = `/api/book-cover?${params.toString()}`;
       
+      // Convert filesize to bytes for better sorting
+      let filesizeBytes = 0;
+      if (book.filesize) {
+        const sizeStr = book.filesize.toLowerCase();
+        const sizeNum = parseFloat(sizeStr);
+        if (sizeStr.includes('kb')) {
+          filesizeBytes = sizeNum * 1024;
+        } else if (sizeStr.includes('mb')) {
+          filesizeBytes = sizeNum * 1024 * 1024;
+        } else if (sizeStr.includes('gb')) {
+          filesizeBytes = sizeNum * 1024 * 1024 * 1024;
+        } else {
+          filesizeBytes = sizeNum;
+        }
+      }
+      
       return {
         id: book.id || '',
         title: book.title || 'Unknown Title',
@@ -171,6 +249,7 @@ export default async function handler(
         pages: book.pages || '',
         language: book.language || '',
         filesize: book.filesize || '',
+        filesize_bytes: filesizeBytes,
         extension: book.extension || '',
         md5: md5,
         publisher: book.publisher || '',
@@ -180,117 +259,34 @@ export default async function handler(
         coverurl: coverUrl,
         rawCoverUrl: book.coverurl || '',
         tags: book.tags || '',
+        topic: book.topic || '',
+        volumeinfo: book.volumeinfo || '',
+        periodical: book.periodical || '',
+        city: book.city || '',
+        edition: book.edition || '',
+        commentary: book.commentary || '',
+        dpi: book.dpi || '',
+        color: book.color || '',
+        cleaned: book.cleaned || '',
+        orientation: book.orientation || '',
+        paginated: book.paginated || '',
+        scanned: book.scanned || '',
+        bookmarked: book.bookmarked || '',
+        searchable: book.searchable || '',
       };
     });
 
-    // Apply multi-criteria sorting
-    let finalBooks = transformedBooks;
-    
-    // If multi_sort is provided and has criteria, use it; otherwise use single sort
-    const sortCriteria = Array.isArray(multi_sort) && multi_sort.length > 0 
-      ? multi_sort 
-      : [{ field: sort_by, reverse }];
-    
-    if (sortCriteria.length > 0 && sortCriteria[0].field !== 'def') {
-      finalBooks = transformedBooks.sort((a: any, b: any) => {
-        for (const criterion of sortCriteria) {
-          const { field, reverse: criterionReverse = false } = criterion;
-          let result = 0;
-          
-          switch (field) {
-            case 'year':
-              const currentYear = new Date().getFullYear();
-              const yearA = parseInt(a.year) || 0;
-              const yearB = parseInt(b.year) || 0;
-              
-              if (criterionReverse) {
-                // Latest First - prioritize current year
-                if (yearA === currentYear && yearB !== currentYear) result = -1;
-                else if (yearB === currentYear && yearA !== currentYear) result = 1;
-                else result = yearB - yearA;
-              } else {
-                result = yearA - yearB;
-              }
-              break;
-              
-            case 'title':
-              result = a.title.localeCompare(b.title);
-              if (criterionReverse) result = -result;
-              break;
-              
-            case 'author':
-              result = a.author.localeCompare(b.author);
-              if (criterionReverse) result = -result;
-              break;
-              
-            case 'publisher':
-              result = a.publisher.localeCompare(b.publisher);
-              if (criterionReverse) result = -result;
-              break;
-              
-            case 'pages':
-              const pagesA = parseInt(a.pages) || 0;
-              const pagesB = parseInt(b.pages) || 0;
-              result = pagesA - pagesB;
-              if (criterionReverse) result = -result;
-              break;
-              
-            case 'language':
-              result = a.language.localeCompare(b.language);
-              if (criterionReverse) result = -result;
-              break;
-              
-            case 'filesize':
-              const sizeA = parseInt(a.filesize) || 0;
-              const sizeB = parseInt(b.filesize) || 0;
-              result = sizeA - sizeB;
-              if (criterionReverse) result = -result;
-              break;
-              
-            case 'extension':
-              // Advanced file type sorting with categories
-              const getFileTypeCategory = (ext: string) => {
-                const extension = ext.toLowerCase();
-                if (['pdf'].includes(extension)) return 1; // PDF first
-                if (['epub', 'mobi', 'azw', 'azw3'].includes(extension)) return 2; // E-book formats
-                if (['djvu', 'djv'].includes(extension)) return 3; // DjVu
-                if (['doc', 'docx', 'rtf', 'odt'].includes(extension)) return 4; // Word processors
-                if (['txt', 'md', 'html', 'htm'].includes(extension)) return 5; // Text formats
-                if (['chm', 'lit'].includes(extension)) return 6; // Help/compiled formats
-                if (['zip', 'rar', '7z', 'tar', 'gz'].includes(extension)) return 7; // Archives
-                return 8; // Other formats
-              };
-              
-              const categoryA = getFileTypeCategory(a.extension);
-              const categoryB = getFileTypeCategory(b.extension);
-              
-              if (categoryA !== categoryB) {
-                result = categoryA - categoryB;
-              } else {
-                // Within same category, sort alphabetically
-                result = a.extension.localeCompare(b.extension);
-              }
-              
-              if (criterionReverse) result = -result;
-              break;
-              
-            default:
-              result = 0;
-          }
-          
-          // If this criterion produces a non-zero result, return it
-          if (result !== 0) {
-            return result;
-          }
-          
-          // If result is 0, continue to next criterion
-        }
-        
-        return 0; // All criteria resulted in equality
-      });
-    }
+    // Calculate pagination info
+    const totalResults = transformedBooks.length;
+    const currentPage = Math.floor(offset / count) + 1;
+    const totalPages = Math.ceil(totalResults / count);
 
-    const result = { books: finalBooks };
+    const result = { 
+      books: transformedBooks,
+      totalResults,
+      currentPage,
+      totalPages
+    };
     
     // Cache the result
     setCache(cacheKey, result);

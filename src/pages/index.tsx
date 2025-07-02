@@ -1,7 +1,14 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import Head from "next/head";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Book, Filter, Loader2, Sun, Moon, ChevronLeft, ChevronRight, Plus, X, Settings, Menu, Download, Star, Calendar, FileText, Users, Globe, HardDrive, Zap, TrendingUp, Check, ChevronDown } from "lucide-react";
+import { 
+  Search, Book, Filter, Loader2, ChevronLeft, ChevronRight, 
+  Plus, X, Settings, Menu, Download, Star, Calendar, FileText, 
+  Users, Globe, HardDrive, Zap, TrendingUp, Check, ChevronDown,
+  ArrowUpDown, ArrowUp, ArrowDown, Eye, Grid, List, MoreHorizontal,
+  BookOpen, User, Building, Hash, Languages, Tag, Clock, FileType,
+  SortAsc, SortDesc, RefreshCw, Bookmark, ExternalLink
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,15 +24,112 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription, SheetHeader } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { DownloadButton } from "@/components/DownloadButton";
 import { BookCover } from "@/components/BookCover";
 import { cn } from "@/lib/utils";
 import { searchCache, generateSearchKey } from "@/lib/cache";
-// The type is imported from search.ts, so we need to ensure it's updated there first.
-// No change needed here for the type definition itself, as it's imported.
 import type { LibGenBook, SearchResponse } from "./api/search";
 import { useRouter } from 'next/router';
 import Header from "@/components/Header";
+
+// Topics data structure matching LibGen's actual topics
+const TOPICS = [
+  {
+    id: 'topicid210',
+    label: 'Technology',
+    children: [
+      { id: 'topicid212', label: 'Aerospace Equipment' },
+      { id: 'topicid211', label: 'Automation' },
+      { id: 'topicid235', label: 'Communication: Telecommunications' },
+      { id: 'topicid234', label: 'Communication' },
+      { id: 'topicid236', label: 'Construction' },
+      { id: 'topicid257', label: 'Electronics: Robotics' },
+      { id: 'topicid220', label: 'Mechanical Engineering' },
+      { id: 'topicid224', label: 'Nanotechnology' },
+      { id: 'topicid216', label: 'Publishing' },
+    ],
+  },
+  {
+    id: 'topicid57',
+    label: 'Art',
+    children: [
+      { id: 'topicid60', label: 'Cinema' },
+      { id: 'topicid58', label: 'Design: Architecture' },
+      { id: 'topicid61', label: 'Music' },
+      { id: 'topicid63', label: 'Photo' },
+    ],
+  },
+  {
+    id: 'topicid12',
+    label: 'Biology',
+    children: [
+      { id: 'topicid14', label: 'Anthropology' },
+      { id: 'topicid16', label: 'Biostatistics' },
+      { id: 'topicid22', label: 'Genetics' },
+      { id: 'topicid31', label: 'Ecology' },
+    ],
+  },
+  {
+    id: 'topicid69',
+    label: 'Computers',
+    children: [
+      { id: 'topicid71', label: 'Algorithms and Data Structures' },
+      { id: 'topicid82', label: 'Cryptography' },
+      { id: 'topicid76', label: 'Databases' },
+      { id: 'topicid87', label: 'Programming' },
+      { id: 'topicid99', label: 'Networking' },
+    ],
+  },
+  {
+    id: 'topicid113',
+    label: 'Mathematics',
+    children: [
+      { id: 'topicid114', label: 'Algebra' },
+      { id: 'topicid117', label: 'Analysis' },
+      { id: 'topicid121', label: 'Geometry and Topology' },
+      { id: 'topicid119', label: 'Probability' },
+    ],
+  },
+  {
+    id: 'topicid147',
+    label: 'Medicine',
+    children: [
+      { id: 'topicid148', label: 'Anatomy and physiology' },
+      { id: 'topicid159', label: 'Cardiology' },
+      { id: 'topicid166', label: 'Oncology' },
+      { id: 'topicid173', label: 'Pharmacology' },
+    ],
+  },
+  {
+    id: 'topicid264',
+    label: 'Physics',
+    children: [
+      { id: 'topicid265', label: 'Astronomy' },
+      { id: 'topicid268', label: 'Quantum Mechanics' },
+      { id: 'topicid271', label: 'Mechanics' },
+      { id: 'topicid279', label: 'Optics' },
+    ],
+  },
+];
+
+// Languages available in LibGen
+const LANGUAGES = [
+  'English', 'Russian', 'German', 'French', 'Spanish', 'Italian', 
+  'Portuguese', 'Chinese', 'Japanese', 'Arabic', 'Dutch', 'Polish',
+  'Czech', 'Hungarian', 'Romanian', 'Bulgarian', 'Croatian', 'Serbian',
+  'Ukrainian', 'Belarusian', 'Lithuanian', 'Latvian', 'Estonian',
+  'Finnish', 'Swedish', 'Norwegian', 'Danish', 'Greek', 'Turkish',
+  'Hebrew', 'Persian', 'Hindi', 'Korean', 'Thai', 'Vietnamese'
+];
+
+// File extensions available in LibGen
+const EXTENSIONS = [
+  'pdf', 'epub', 'djvu', 'mobi', 'azw', 'azw3', 'fb2', 'txt', 'rtf',
+  'doc', 'docx', 'chm', 'lit', 'pdb', 'html', 'htm', 'zip', 'rar',
+  '7z', 'tar', 'gz', 'bz2', 'iso', 'mdf', 'nrg', 'img', 'bin', 'cue'
+];
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -47,51 +151,6 @@ const itemVariants = {
   }
 };
 
-const bookCardVariants = {
-  initial: { opacity: 0, y: 15 },
-  animate: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.3, ease: "easeOut" }
-  }
-};
-
-// 1. Add topics data (hardcoded for now)
-const TOPICS = [
-  {
-    label: 'Technology',
-    children: [
-      { label: 'Aerospace Equipment' },
-      { label: 'Automation' },
-      { label: 'Communication: Telecommunications' },
-      { label: 'Electronics: Robotics' },
-      { label: 'Mechanical Engineering' },
-      { label: 'Nanotechnology' },
-      { label: 'Publishing' },
-      // ... add more as needed
-    ],
-  },
-  {
-    label: 'Art',
-    children: [
-      { label: 'Cinema' },
-      { label: 'Design: Architecture' },
-      { label: 'Music' },
-      // ...
-    ],
-  },
-  {
-    label: 'Biology',
-    children: [
-      { label: 'Anthropology' },
-      { label: 'Biostatistics' },
-      { label: 'Genetics' },
-      // ...
-    ],
-  },
-  // ... more top-level topics
-];
-
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [books, setBooks] = useState<LibGenBook[]>([]);
@@ -99,55 +158,32 @@ export default function Home() {
   const [searchIn, setSearchIn] = useState("def");
   const [sortBy, setSortBy] = useState("def");
   const [reverse, setReverse] = useState(false);
-  const [multiSort, setMultiSort] = useState<Array<{field: string, reverse: boolean}>>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [resultsPerPage, setResultsPerPage] = useState(20);
+  const [resultsPerPage, setResultsPerPage] = useState(25);
   const [totalResults, setTotalResults] = useState(0);
-  const [actualResultsCount, setActualResultsCount] = useState(0);
-  const [fileTypeFilter, setFileTypeFilter] = useState<string[]>([]);
-  const [withCoverOnly, setWithCoverOnly] = useState(false);
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [isCached, setIsCached] = useState(false);
-  const { theme, setTheme } = useTheme();
-  const { toast } = useToast();
-  const sparkleButtonRef = useRef<HTMLButtonElement>(null);
-  const [authorFilter, setAuthorFilter] = useState("");
-  const [seriesFilter, setSeriesFilter] = useState("");
-  const [publisherFilter, setPublisherFilter] = useState("");
-  const [yearFilter, setYearFilter] = useState("");
-  const [isbnFilter, setIsbnFilter] = useState("");
-  const [languageFilter, setLanguageFilter] = useState("");
-  const [tagsFilter, setTagsFilter] = useState("");
-  const [sortField, setSortField] = useState<string>('def');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [jumpPage, setJumpPage] = useState<string>('');
-  const [detailedView, setDetailedView] = useState(true);
+  const [totalPages, setTotalPages] = useState(0);
+  const [selectedTopic, setSelectedTopic] = useState("");
+  const [selectedSubTopic, setSelectedSubTopic] = useState("");
+  const [yearFrom, setYearFrom] = useState("");
+  const [yearTo, setYearTo] = useState("");
+  const [selectedLanguage, setSelectedLanguage] = useState("");
+  const [selectedExtension, setSelectedExtension] = useState("");
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [selectedBook, setSelectedBook] = useState<LibGenBook | null>(null);
-  const [pendingQuery, setPendingQuery] = useState(searchQuery);
-  const [pendingAuthor, setPendingAuthor] = useState(authorFilter);
-  const [pendingSeries, setPendingSeries] = useState(seriesFilter);
-  const [pendingPublisher, setPendingPublisher] = useState(publisherFilter);
-  const [pendingYear, setPendingYear] = useState(yearFilter);
-  const [pendingIsbn, setPendingIsbn] = useState(isbnFilter);
-  const [pendingLanguage, setPendingLanguage] = useState(languageFilter);
-  const [pendingFileType, setPendingFileType] = useState(fileTypeFilter[0] || '');
-  const [pendingTags, setPendingTags] = useState(tagsFilter);
-  const [selectedTopic, setSelectedTopic] = useState<string>("");
-  const [subTopics, setSubTopics] = useState<string[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sortColumn, setSortColumn] = useState<string>('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [isCached, setIsCached] = useState(false);
+  
+  const { toast } = useToast();
   const router = useRouter();
 
-  const handleSparkle = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    e.currentTarget.style.setProperty('--sparkle-x', `${x}px`);
-    e.currentTarget.style.setProperty('--sparkle-y', `${y}px`);
-  };
+  // Get subtopics for selected topic
+  const subTopics = TOPICS.find(t => t.id === selectedTopic)?.children || [];
 
-  const searchBooks = useCallback(async (page = 1, newQuery?: string, options?: { searchIn?: string }) => {
+  const searchBooks = useCallback(async (page = 1, newQuery?: string) => {
     const queryToUse = newQuery || searchQuery;
-    const searchInToUse = options?.searchIn || searchIn;
     
     if (!queryToUse.trim()) {
       toast({
@@ -158,7 +194,6 @@ export default function Home() {
       return;
     }
 
-    // Check for very short queries and warn user
     if (queryToUse.trim().length < 2) {
       toast({
         title: "Search term too short",
@@ -166,15 +201,6 @@ export default function Home() {
         variant: "destructive",
       });
       return;
-    }
-
-    // Warn for short queries but allow them
-    if (queryToUse.trim().length <= 2) {
-      toast({
-        title: "Short search term",
-        description: "Short terms like 'CT' may return limited results. Try being more specific.",
-        variant: "default",
-      });
     }
 
     setLoading(true);
@@ -187,10 +213,14 @@ export default function Home() {
         query: queryToUse,
         count: resultsPerPage,
         offset,
-        search_in: searchInToUse,
+        search_in: searchIn,
         sort_by: sortBy,
         reverse: reverse,
-        multi_sort: multiSort,
+        topic: selectedSubTopic || selectedTopic,
+        year_from: yearFrom,
+        year_to: yearTo,
+        language: selectedLanguage,
+        extension: selectedExtension,
       };
 
       const cacheKey = generateSearchKey(queryToUse, searchOptions);
@@ -198,16 +228,10 @@ export default function Home() {
       
       if (cachedResult) {
         setBooks(cachedResult.books);
-        setActualResultsCount(cachedResult.books.length);
+        setTotalResults(cachedResult.totalResults || cachedResult.books.length);
+        setTotalPages(cachedResult.totalPages || Math.ceil(cachedResult.books.length / resultsPerPage));
         setCurrentPage(page);
         setIsCached(true);
-        
-        if (cachedResult.books.length === resultsPerPage) {
-          setTotalResults(page * resultsPerPage + 1);
-        } else {
-          setTotalResults((page - 1) * resultsPerPage + cachedResult.books.length);
-        }
-        
         setLoading(false);
         return;
       }
@@ -228,30 +252,18 @@ export default function Home() {
         });
         setBooks([]);
         setTotalResults(0);
-        setActualResultsCount(0);
+        setTotalPages(0);
       } else {
-        // If no results, cache for only 3 seconds to allow quick refresh after DB update
-        if (data.books.length === 0) {
-          searchCache.set(cacheKey, data, 3 * 1000); // 30 seconds
-        } else {
-          searchCache.set(cacheKey, data);
-        }
+        searchCache.set(cacheKey, data);
         setBooks(data.books);
-        setActualResultsCount(data.books.length);
+        setTotalResults(data.totalResults || data.books.length);
+        setTotalPages(data.totalPages || Math.ceil(data.books.length / resultsPerPage));
         setCurrentPage(page);
-        
-        if (data.books.length === resultsPerPage) {
-          setTotalResults(page * resultsPerPage + 1);
-        } else {
-          setTotalResults((page - 1) * resultsPerPage + data.books.length);
-        }
         
         if (data.books.length === 0) {
           toast({
             title: "No results found",
-            description: queryToUse.trim().length <= 2 
-              ? `No results for \"${queryToUse}\". Short terms may have limited results. Try a more specific search.`
-              : "Try adjusting your search terms or filters.",
+            description: "Try adjusting your search terms or filters.",
           });
         }
       }
@@ -263,302 +275,48 @@ export default function Home() {
       });
       setBooks([]);
       setTotalResults(0);
-      setActualResultsCount(0);
+      setTotalPages(0);
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, searchIn, sortBy, reverse, resultsPerPage, multiSort, toast]);
+  }, [searchQuery, searchIn, sortBy, reverse, resultsPerPage, selectedTopic, selectedSubTopic, yearFrom, yearTo, selectedLanguage, selectedExtension, toast]);
 
-  const filteredBooks = React.useMemo(() => {
-    let filtered: LibGenBook[] = books;
-    if (fileTypeFilter.length > 0) {
-      filtered = filtered.filter((book: LibGenBook) => fileTypeFilter.includes(book.extension?.toLowerCase?.() || ""));
+  // Handle column sorting
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
     }
-    if (withCoverOnly) {
-      filtered = filtered.filter((book: LibGenBook) => book.rawCoverUrl && book.rawCoverUrl.length > 0);
-    }
-    if (authorFilter.trim()) {
-      filtered = filtered.filter((book: LibGenBook) => book.author && book.author.toLowerCase().includes(authorFilter.toLowerCase()));
-    }
-    if (seriesFilter.trim()) {
-      filtered = filtered.filter((book: LibGenBook) => book.series && book.series.toLowerCase().includes(seriesFilter.toLowerCase()));
-    }
-    if (publisherFilter.trim()) {
-      filtered = filtered.filter((book: LibGenBook) => book.publisher && book.publisher.toLowerCase().includes(publisherFilter.toLowerCase()));
-    }
-    if (yearFilter.trim()) {
-      filtered = filtered.filter((book: LibGenBook) => book.year && book.year.includes(yearFilter));
-    }
-    if (isbnFilter.trim()) {
-      filtered = filtered.filter((book: LibGenBook) => book.isbn && book.isbn.includes(isbnFilter));
-    }
-    if (languageFilter.trim()) {
-      filtered = filtered.filter((book: LibGenBook) => book.language && book.language.toLowerCase().includes(languageFilter.toLowerCase()));
-    }
-    if (tagsFilter.trim()) {
-      filtered = filtered.filter((book: LibGenBook) => book.tags && book.tags.toLowerCase().includes(tagsFilter.toLowerCase()));
-    }
-    return filtered;
-  }, [books, fileTypeFilter, withCoverOnly, authorFilter, seriesFilter, publisherFilter, yearFilter, isbnFilter, languageFilter, tagsFilter]);
+  };
 
-  // Sorting logic
+  // Sort books based on current sort settings
   const sortedBooks = React.useMemo(() => {
-    if (sortField === 'def') return filteredBooks;
-    return [...filteredBooks].sort((a, b) => {
-      let aVal = a[sortField as keyof LibGenBook] || '';
-      let bVal = b[sortField as keyof LibGenBook] || '';
-      if (sortField === 'year' || sortField === 'pages' || sortField === 'filesize') {
+    if (!sortColumn) return books;
+    
+    return [...books].sort((a, b) => {
+      let aVal = a[sortColumn as keyof LibGenBook] || '';
+      let bVal = b[sortColumn as keyof LibGenBook] || '';
+      
+      // Handle numeric fields
+      if (['year', 'pages', 'filesize_bytes'].includes(sortColumn)) {
         aVal = parseInt(aVal as string) || 0;
         bVal = parseInt(bVal as string) || 0;
-        return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+        const result = (aVal as number) - (bVal as number);
+        return sortDirection === 'asc' ? result : -result;
       }
-      return sortDirection === 'asc'
-        ? String(aVal).localeCompare(String(bVal))
-        : String(bVal).localeCompare(String(aVal));
+      
+      // Handle string fields
+      const result = String(aVal).localeCompare(String(bVal));
+      return sortDirection === 'asc' ? result : -result;
     });
-  }, [filteredBooks, sortField, sortDirection]);
+  }, [books, sortColumn, sortDirection]);
 
-  // Pagination logic
-  const totalPages = Math.ceil(sortedBooks.length / resultsPerPage);
-  const getPageNumbers = () => {
-    if (totalPages <= 10) return Array.from({ length: totalPages }, (_, i) => i + 1);
-    const pages = [1];
-    if (currentPage > 5) pages.push('...');
-    for (let i = Math.max(2, currentPage - 2); i <= Math.min(totalPages - 1, currentPage + 2); i++) pages.push(i);
-    if (currentPage < totalPages - 4) pages.push('...');
-    pages.push(totalPages);
-    return pages;
-  };
-  const pagedBooks = sortedBooks.slice((currentPage - 1) * resultsPerPage, currentPage * resultsPerPage);
-
-  // Helper to get unique values for dropdowns
-  const getUnique = (field: keyof LibGenBook) => Array.from(new Set(books.map(b => b[field]).filter(Boolean))).sort();
-
-  // On mount, initialize state from URL query params
-  useEffect(() => {
-    const q = router.query.q as string || '';
-    const author = router.query.author as string || '';
-    const series = router.query.series as string || '';
-    const publisher = router.query.publisher as string || '';
-    const year = router.query.year as string || '';
-    const isbn = router.query.isbn as string || '';
-    const language = router.query.language as string || '';
-    const extension = router.query.extension as string || '';
-    const tags = router.query.tags as string || '';
-    const perPage = router.query.perPage as string || '';
-    const searchInField = router.query.searchIn as string || 'def';
-    setPendingQuery(q);
-    setPendingAuthor(author);
-    setPendingSeries(series);
-    setPendingPublisher(publisher);
-    setPendingYear(year);
-    setPendingIsbn(isbn);
-    setPendingLanguage(language);
-    setPendingFileType(extension);
-    setPendingTags(tags);
-    setResultsPerPage(perPage ? Number(perPage) : 25);
-    setSearchIn(searchInField);
-  }, [router.query]);
-
-  // When topic changes, auto-populate filters (simulate for now)
-  useEffect(() => {
-    if (selectedTopic) {
-      // Simulate: when a topic is chosen, auto-populate year, publisher, etc.
-      setPendingYear("");
-      setPendingPublisher("");
-      setPendingAuthor("");
-      // In a real app, fetch available years/publishers for the topic
-    }
-  }, [selectedTopic]);
-
-  // Update URL with query params on search
-  const applyFilters = () => {
-    setSearchQuery(pendingQuery);
-    setAuthorFilter(pendingAuthor);
-    setSeriesFilter(pendingSeries);
-    setPublisherFilter(pendingPublisher);
-    setYearFilter(pendingYear);
-    setIsbnFilter(pendingIsbn);
-    setLanguageFilter(pendingLanguage);
-    setFileTypeFilter(pendingFileType ? [pendingFileType] : []);
-    setTagsFilter(pendingTags);
-    setCurrentPage(1);
-    router.push({
-      pathname: '/',
-      query: {
-        q: pendingQuery,
-        author: pendingAuthor,
-        series: pendingSeries,
-        publisher: pendingPublisher,
-        year: pendingYear,
-        isbn: pendingIsbn,
-        language: pendingLanguage,
-        extension: pendingFileType,
-        tags: pendingTags,
-        perPage: resultsPerPage,
-        searchIn: searchIn,
-      },
-    }, undefined, { shallow: true });
-    searchBooks(1, pendingQuery);
-  };
-
-  // 3. Fix pagination logic: update page in URL and trigger new search
-  useEffect(() => {
-    if (hasSearched) {
-      router.push({
-        pathname: '/',
-        query: {
-          ...router.query,
-          page: currentPage,
-        },
-      }, undefined, { shallow: true });
-      searchBooks(currentPage);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage]);
-
-  // 2. Refactor FilterBar into a card box with topics dropdown
-  const FilterBar = () => (
-    <div className="mx-auto max-w-3xl bg-card/90 shadow-2xl border border-slate-800 rounded-2xl p-6 mb-8 flex flex-col gap-4">
-      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-        <div className="w-full sm:w-1/2">
-          <label className="block text-xs font-semibold mb-1">Topic</label>
-          <Select value={selectedTopic} onValueChange={v => {
-            setSelectedTopic(v);
-            const topic = TOPICS.find(t => t.label === v);
-            setSubTopics(topic?.children?.map(c => c.label) || []);
-          }}>
-            <SelectTrigger><SelectValue placeholder="Choose topic" /></SelectTrigger>
-            <SelectContent>
-              {TOPICS.map(t => (
-                <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {subTopics.length > 0 && (
-          <div className="w-full sm:w-1/2">
-            <label className="block text-xs font-semibold mb-1">Subtopic</label>
-            <Select value={pendingTags} onValueChange={v => setPendingTags(v)}>
-              <SelectTrigger><SelectValue placeholder="Choose subtopic" /></SelectTrigger>
-              <SelectContent>
-                {subTopics.map(sub => (
-                  <SelectItem key={sub} value={sub}>{sub}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
-        <div>
-          <label className="block text-xs font-semibold mb-1">Author</label>
-          <Select value={pendingAuthor || "__all__"} onValueChange={v => setPendingAuthor(v === "__all__" ? "" : v)}>
-            <SelectTrigger><SelectValue placeholder="Author" /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All Authors</SelectItem>{getUnique('author').map(a => <SelectItem key={a} value={a as string}>{a}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold mb-1">Series</label>
-          <Select value={pendingSeries || "__all__"} onValueChange={v => setPendingSeries(v === "__all__" ? "" : v)}>
-            <SelectTrigger><SelectValue placeholder="Series" /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All Series</SelectItem>{getUnique('series').map(s => <SelectItem key={s} value={s as string}>{s}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold mb-1">Publisher</label>
-          <Select value={pendingPublisher || "__all__"} onValueChange={v => setPendingPublisher(v === "__all__" ? "" : v)}>
-            <SelectTrigger><SelectValue placeholder="Publisher" /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All Publishers</SelectItem>{getUnique('publisher').map(p => <SelectItem key={p} value={p as string}>{p}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold mb-1">Year</label>
-          <Select value={pendingYear || "__all__"} onValueChange={v => setPendingYear(v === "__all__" ? "" : v)}>
-            <SelectTrigger><SelectValue placeholder="Year" /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All Years</SelectItem>{getUnique('year').map(y => <SelectItem key={y} value={y as string}>{y}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold mb-1">ISBN</label>
-          <Input placeholder="ISBN" value={pendingIsbn} onChange={e => setPendingIsbn(e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold mb-1">Language</label>
-          <Select value={pendingLanguage || "__all__"} onValueChange={v => setPendingLanguage(v === "__all__" ? "" : v)}>
-            <SelectTrigger><SelectValue placeholder="Language" /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All Languages</SelectItem>{getUnique('language').map(l => <SelectItem key={l} value={l as string}>{l}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold mb-1">Extension</label>
-          <Select value={pendingFileType || "__all__"} onValueChange={v => setPendingFileType(v === "__all__" ? "" : v)}>
-            <SelectTrigger><SelectValue placeholder="Extension" /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All Types</SelectItem>{getUnique('extension').map(ext => <SelectItem key={ext} value={ext as string}>{ext.toUpperCase()}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold mb-1">Tags</label>
-          <Input placeholder="Tags" value={pendingTags} onChange={e => setPendingTags(e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold mb-1">Results per page</label>
-          <Select value={String(resultsPerPage)} onValueChange={v => { setResultsPerPage(Number(v)); setCurrentPage(1); }}>
-            <SelectTrigger><SelectValue placeholder="Per Page" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="25">25</SelectItem>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="col-span-full mt-4">
-        <label className="block text-xs font-semibold mb-1">Search in fields</label>
-        <div className="flex flex-wrap gap-2 mb-2">
-          <label className="flex items-center gap-1"><input type="radio" name="column" value="def" checked={searchIn === 'def'} onChange={() => setSearchIn('def')} /> Default</label>
-          <label className="flex items-center gap-1"><input type="radio" name="column" value="title" checked={searchIn === 'title'} onChange={() => setSearchIn('title')} /> Title</label>
-          <label className="flex items-center gap-1"><input type="radio" name="column" value="author" checked={searchIn === 'author'} onChange={() => setSearchIn('author')} /> Author</label>
-          <label className="flex items-center gap-1"><input type="radio" name="column" value="series" checked={searchIn === 'series'} onChange={() => setSearchIn('series')} /> Series</label>
-          <label className="flex items-center gap-1"><input type="radio" name="column" value="publisher" checked={searchIn === 'publisher'} onChange={() => setSearchIn('publisher')} /> Publisher</label>
-          <label className="flex items-center gap-1"><input type="radio" name="column" value="year" checked={searchIn === 'year'} onChange={() => setSearchIn('year')} /> Year</label>
-          <label className="flex items-center gap-1"><input type="radio" name="column" value="identifier" checked={searchIn === 'identifier'} onChange={() => setSearchIn('identifier')} /> ISBN</label>
-          <label className="flex items-center gap-1"><input type="radio" name="column" value="language" checked={searchIn === 'language'} onChange={() => setSearchIn('language')} /> Language</label>
-          <label className="flex items-center gap-1"><input type="radio" name="column" value="md5" checked={searchIn === 'md5'} onChange={() => setSearchIn('md5')} /> MD5</label>
-          <label className="flex items-center gap-1"><input type="radio" name="column" value="tags" checked={searchIn === 'tags'} onChange={() => setSearchIn('tags')} /> Tags</label>
-        </div>
-        <Input
-          placeholder={`Search by ${searchIn === 'def' ? 'keyword' : searchIn}`}
-          value={pendingQuery}
-          onChange={e => setPendingQuery(e.target.value)}
-          className="w-full text-base px-4 py-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          autoFocus
-        />
-      </div>
-      <div className="flex justify-end mt-4">
-        <Button onClick={applyFilters} className="h-10 px-8 rounded-xl text-base font-semibold shadow bg-primary text-white hover:bg-primary/90">Search</Button>
-      </div>
-    </div>
-  );
-
-  // Pagination UI
-  const Pagination = () => (
-    <div className="flex flex-wrap items-center justify-center gap-2 my-8 text-sm font-sans">
-      <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="rounded-full shadow-sm">Prev</Button>
-      {getPageNumbers().map((page, i) =>
-        typeof page === 'number' ? (
-          <Button key={page} variant={page === currentPage ? 'default' : 'outline'} size="sm" onClick={() => setCurrentPage(page)} className={`rounded-full shadow-sm ${page === currentPage ? 'font-bold' : ''}`}>{page}</Button>
-        ) : (
-          <span key={i} className="px-2">…</span>
-        )
-      )}
-      <span className="ml-2">of {totalPages}</span>
-      <form onSubmit={e => { e.preventDefault(); const n = parseInt(jumpPage); if (n >= 1 && n <= totalPages) setCurrentPage(n); setJumpPage(''); }} className="inline-block ml-2">
-        <Input value={jumpPage} onChange={e => setJumpPage(e.target.value.replace(/\D/g, ''))} placeholder="Go to" className="w-16 px-2 py-1 border border-gray-300 rounded-xl" />
-      </form>
-      <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="rounded-full shadow-sm">Next</Button>
-    </div>
-  );
+  // Pagination
+  const totalPagesCalc = Math.ceil(totalResults / resultsPerPage);
+  const startIndex = (currentPage - 1) * resultsPerPage + 1;
+  const endIndex = Math.min(currentPage * resultsPerPage, totalResults);
 
   const formatFileSize = (size: string) => {
     if (!size) return '';
@@ -577,96 +335,636 @@ export default function Home() {
     return `${fileSize.toFixed(1)} ${units[unitIndex]}`;
   };
 
-  const handleAuthorSearch = (author: string) => {
-    const newQuery = author;
-    const newSearchIn = 'author';
-    setSearchQuery(newQuery);
-    setSearchIn(newSearchIn);
-    searchBooks(1, newQuery, { searchIn: newSearchIn });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const SortableHeader = ({ column, children }: { column: string; children: React.ReactNode }) => (
+    <th 
+      className="px-4 py-3 text-left font-semibold text-slate-200 cursor-pointer hover:bg-slate-800/50 transition-colors select-none"
+      onClick={() => handleSort(column)}
+    >
+      <div className="flex items-center gap-2">
+        {children}
+        {sortColumn === column ? (
+          sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+        ) : (
+          <ArrowUpDown className="w-4 h-4 opacity-50" />
+        )}
+      </div>
+    </th>
+  );
+
+  const Pagination = () => {
+    const getPageNumbers = () => {
+      const pages = [];
+      const maxVisible = 7;
+      
+      if (totalPagesCalc <= maxVisible) {
+        for (let i = 1; i <= totalPagesCalc; i++) {
+          pages.push(i);
+        }
+      } else {
+        pages.push(1);
+        
+        if (currentPage > 4) {
+          pages.push('...');
+        }
+        
+        const start = Math.max(2, currentPage - 2);
+        const end = Math.min(totalPagesCalc - 1, currentPage + 2);
+        
+        for (let i = start; i <= end; i++) {
+          pages.push(i);
+        }
+        
+        if (currentPage < totalPagesCalc - 3) {
+          pages.push('...');
+        }
+        
+        if (totalPagesCalc > 1) {
+          pages.push(totalPagesCalc);
+        }
+      }
+      
+      return pages;
+    };
+
+    return (
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 p-4 bg-card rounded-xl border">
+        <div className="text-sm text-muted-foreground">
+          Showing {startIndex}-{endIndex} of {totalResults} results
+          {isCached && <Badge variant="outline" className="ml-2">Cached</Badge>}
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1 || loading}
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Previous
+          </Button>
+          
+          <div className="flex items-center gap-1">
+            {getPageNumbers().map((page, index) => (
+              typeof page === 'number' ? (
+                <Button
+                  key={page}
+                  variant={page === currentPage ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setCurrentPage(page)}
+                  disabled={loading}
+                  className="min-w-[40px]"
+                >
+                  {page}
+                </Button>
+              ) : (
+                <span key={index} className="px-2 text-muted-foreground">
+                  {page}
+                </span>
+              )
+            ))}
+          </div>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(p => Math.min(totalPagesCalc, p + 1))}
+            disabled={currentPage === totalPagesCalc || loading}
+          >
+            Next
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+    );
   };
 
   return (
     <>
       <Head>
-        <title>THE DANIELS LIBRARY - Advanced Book Discovery Platform</title>
-        <meta name="description" content="Modern LibGen search with beautiful UI, mobile-first design, and powerful filtering" />
+        <title>LibGen Pro - Advanced Academic Library Search</title>
+        <meta name="description" content="Modern LibGen search with advanced filtering, sorting, and beautiful UI" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
       <div className="min-h-screen bg-background flex flex-col">
         <Header />
-        <main className="container mx-auto px-2 sm:px-4 py-8 flex-1 w-full">
-          <FilterBar />
-          <div className="overflow-x-auto border border-slate-800 rounded-2xl bg-card shadow-xl mt-2">
-            <table className="min-w-full text-sm font-sans border-collapse">
-              <thead className="sticky top-0 z-10 bg-slate-900/95 dark:bg-slate-900/95 border-b border-slate-800">
-                <tr>
-                  <th className="px-3 py-2 border-r border-slate-800 text-left font-semibold text-slate-200">Author(s)</th>
-                  <th className="px-3 py-2 border-r border-slate-800 text-left font-semibold text-slate-200">Title</th>
-                  <th className="px-3 py-2 border-r border-slate-800 text-left font-semibold text-slate-200">Publisher</th>
-                  <th className="px-3 py-2 border-r border-slate-800 text-left font-semibold text-slate-200">Year</th>
-                  <th className="px-3 py-2 border-r border-slate-800 text-left font-semibold text-slate-200">Pages</th>
-                  <th className="px-3 py-2 border-r border-slate-800 text-left font-semibold text-slate-200">Language</th>
-                  <th className="px-3 py-2 border-r border-slate-800 text-left font-semibold text-slate-200">Size</th>
-                  <th className="px-3 py-2 border-r border-slate-800 text-left font-semibold text-slate-200">Ext</th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-200">Cover</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedBooks.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-8 text-slate-400">No books found. Try different search terms or filters.</td></tr>
-                ) : (
-                  pagedBooks.map((book, idx) => (
-                    <tr key={book.md5} className={idx % 2 === 0 ? "bg-slate-900/80" : "bg-slate-800/80"}>
-                      <td className="px-3 py-2 border-r border-slate-800 max-w-[120px] truncate text-slate-100">{book.author}</td>
-                      <td className="px-3 py-2 border-r border-slate-800 max-w-[200px] truncate text-blue-300 hover:underline cursor-pointer" onClick={() => setSelectedBook(book)}>{book.title}</td>
-                      <td className="px-3 py-2 border-r border-slate-800 max-w-[100px] truncate text-slate-100">{book.publisher}</td>
-                      <td className="px-3 py-2 border-r border-slate-800 text-slate-100">{book.year}</td>
-                      <td className="px-3 py-2 border-r border-slate-800 text-slate-100">{book.pages}</td>
-                      <td className="px-3 py-2 border-r border-slate-800 text-slate-100">{book.language}</td>
-                      <td className="px-3 py-2 border-r border-slate-800 text-slate-100">{formatFileSize(book.filesize)}</td>
-                      <td className="px-3 py-2 border-r border-slate-800 text-slate-100">{book.extension?.toUpperCase()}</td>
-                      <td className="px-3 py-2"><BookCover rawCoverUrl={book.rawCoverUrl} title={book.title} author={book.author} isbn={book.isbn} extension={book.extension} /></td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          <Pagination />
-        </main>
+        
+        <main className="container mx-auto px-4 py-8 flex-1 max-w-7xl">
+          {/* Advanced Search Interface */}
+          <Card className="mb-8 bg-gradient-to-br from-card/95 to-card/80 backdrop-blur-sm border-slate-700">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-2xl font-bold gradient-text">Advanced Search</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFiltersOpen(!filtersOpen)}
+                  className="lg:hidden"
+                >
+                  <Filter className="w-4 h-4 mr-2" />
+                  Filters
+                </Button>
+              </div>
+            </CardHeader>
+            
+            <CardContent className="space-y-6">
+              {/* Main Search Bar */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
+                <Input
+                  placeholder="Search for books, authors, topics..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && searchBooks(1)}
+                  className="pl-10 pr-4 py-3 text-lg rounded-xl border-slate-600 bg-slate-800/50 focus:bg-slate-800 transition-colors"
+                  autoFocus
+                />
+                <Button
+                  onClick={() => searchBooks(1)}
+                  disabled={loading || !searchQuery.trim()}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 button-gradient rounded-lg"
+                  size="sm"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                </Button>
+              </div>
 
-        {selectedBook && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-card rounded-xl shadow-2xl max-w-lg w-full p-6 relative">
-              <button className="absolute top-2 right-2 text-xl" onClick={() => setSelectedBook(null)} aria-label="Close">×</button>
-              <div className="flex gap-4 mb-4">
-                <div className="flex-shrink-0">
-                  <BookCover rawCoverUrl={selectedBook.rawCoverUrl} title={selectedBook.title} author={selectedBook.author} isbn={selectedBook.isbn} extension={selectedBook.extension} className="w-32 h-44 rounded-lg border" />
+              {/* Search Options */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">Search In</Label>
+                  <Select value={searchIn} onValueChange={setSearchIn}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="def">All Fields</SelectItem>
+                      <SelectItem value="title">Title</SelectItem>
+                      <SelectItem value="author">Author</SelectItem>
+                      <SelectItem value="series">Series</SelectItem>
+                      <SelectItem value="publisher">Publisher</SelectItem>
+                      <SelectItem value="year">Year</SelectItem>
+                      <SelectItem value="identifier">ISBN</SelectItem>
+                      <SelectItem value="language">Language</SelectItem>
+                      <SelectItem value="md5">MD5</SelectItem>
+                      <SelectItem value="tags">Tags</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="flex-1">
-                  <h2 className="font-bold text-xl mb-1">{selectedBook.title}</h2>
-                  <div className="text-muted-foreground mb-2">by {selectedBook.author}</div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                    <span className="font-medium">Publisher:</span> <span>{selectedBook.publisher}</span>
-                    <span className="font-medium">Year:</span> <span>{selectedBook.year}</span>
-                    <span className="font-medium">Pages:</span> <span>{selectedBook.pages}</span>
-                    <span className="font-medium">Language:</span> <span>{selectedBook.language}</span>
-                    <span className="font-medium">Size:</span> <span>{formatFileSize(selectedBook.filesize)}</span>
-                    <span className="font-medium">Extension:</span> <span>{selectedBook.extension?.toUpperCase()}</span>
-                    <span className="font-medium">ISBN:</span> <span>{selectedBook.isbn}</span>
-                    <span className="font-medium">Series:</span> <span>{selectedBook.series}</span>
-                    <span className="font-medium">Tags:</span> <span>{selectedBook.tags}</span>
-                    <span className="font-medium">MD5:</span> <span className="break-all">{selectedBook.md5}</span>
+
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">Sort By</Label>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="def">Relevance</SelectItem>
+                      <SelectItem value="title">Title</SelectItem>
+                      <SelectItem value="author">Author</SelectItem>
+                      <SelectItem value="year">Year</SelectItem>
+                      <SelectItem value="publisher">Publisher</SelectItem>
+                      <SelectItem value="pages">Pages</SelectItem>
+                      <SelectItem value="filesize">File Size</SelectItem>
+                      <SelectItem value="extension">Extension</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">Results Per Page</Label>
+                  <Select value={String(resultsPerPage)} onValueChange={(v) => setResultsPerPage(Number(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-end">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="reverse-sort"
+                      checked={reverse}
+                      onCheckedChange={setReverse}
+                    />
+                    <Label htmlFor="reverse-sort" className="text-sm">Reverse Sort</Label>
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end mt-4">
-                <DownloadButton md5={selectedBook.md5} title={selectedBook.title} />
+
+              {/* Advanced Filters */}
+              <div className={cn("space-y-4 transition-all duration-300", filtersOpen || "lg:block hidden")}>
+                <Separator />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Topic Selection */}
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Topic</Label>
+                    <Select value={selectedTopic} onValueChange={(value) => {
+                      setSelectedTopic(value);
+                      setSelectedSubTopic('');
+                    }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select topic" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">All Topics</SelectItem>
+                        {TOPICS.map(topic => (
+                          <SelectItem key={topic.id} value={topic.id}>
+                            {topic.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Subtopic Selection */}
+                  {subTopics.length > 0 && (
+                    <div>
+                      <Label className="text-sm font-medium mb-2 block">Subtopic</Label>
+                      <Select value={selectedSubTopic} onValueChange={setSelectedSubTopic}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select subtopic" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">All Subtopics</SelectItem>
+                          {subTopics.map(subtopic => (
+                            <SelectItem key={subtopic.id} value={subtopic.id}>
+                              {subtopic.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Language Filter */}
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Language</Label>
+                    <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Any language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Any Language</SelectItem>
+                        {LANGUAGES.map(lang => (
+                          <SelectItem key={lang} value={lang}>
+                            {lang}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Extension Filter */}
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">File Type</Label>
+                    <Select value={selectedExtension} onValueChange={setSelectedExtension}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Any format" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Any Format</SelectItem>
+                        {EXTENSIONS.map(ext => (
+                          <SelectItem key={ext} value={ext}>
+                            {ext.toUpperCase()}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Year Range */}
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Year From</Label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 2000"
+                      value={yearFrom}
+                      onChange={(e) => setYearFrom(e.target.value)}
+                      min="1800"
+                      max="2024"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Year To</Label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 2024"
+                      value={yearTo}
+                      onChange={(e) => setYearTo(e.target.value)}
+                      min="1800"
+                      max="2024"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
+            </CardContent>
+          </Card>
+
+          {/* Results Section */}
+          {hasSearched && (
+            <Card className="bg-card/95 backdrop-blur-sm border-slate-700">
+              <CardHeader className="pb-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl font-bold">
+                      Search Results
+                      {totalResults > 0 && (
+                        <Badge variant="secondary" className="ml-2">
+                          {totalResults.toLocaleString()} books
+                        </Badge>
+                      )}
+                    </CardTitle>
+                    {searchQuery && (
+                      <p className="text-muted-foreground mt-1">
+                        Results for "{searchQuery}"
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => searchBooks(currentPage)}
+                      disabled={loading}
+                    >
+                      <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
+                      Refresh
+                    </Button>
+                    
+                    <div className="flex items-center border rounded-lg">
+                      <Button
+                        variant={viewMode === 'table' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setViewMode('table')}
+                        className="rounded-r-none"
+                      >
+                        <List className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setViewMode('grid')}
+                        className="rounded-l-none"
+                      >
+                        <Grid className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-0">
+                {loading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+                      <p className="text-muted-foreground">Searching library...</p>
+                    </div>
+                  </div>
+                ) : books.length === 0 ? (
+                  <div className="text-center py-12">
+                    <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">No books found</h3>
+                    <p className="text-muted-foreground">
+                      Try adjusting your search terms or filters
+                    </p>
+                  </div>
+                ) : viewMode === 'table' ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-slate-900/50 border-b border-slate-700">
+                        <tr>
+                          <th className="px-4 py-3 text-left font-semibold text-slate-200 w-16">Cover</th>
+                          <SortableHeader column="title">Title</SortableHeader>
+                          <SortableHeader column="author">Author</SortableHeader>
+                          <SortableHeader column="year">Year</SortableHeader>
+                          <SortableHeader column="pages">Pages</SortableHeader>
+                          <SortableHeader column="language">Language</SortableHeader>
+                          <SortableHeader column="filesize">Size</SortableHeader>
+                          <SortableHeader column="extension">Type</SortableHeader>
+                          <th className="px-4 py-3 text-left font-semibold text-slate-200 w-24">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedBooks.map((book, index) => (
+                          <motion.tr
+                            key={book.md5}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            className="border-b border-slate-800 hover:bg-slate-800/30 transition-colors"
+                          >
+                            <td className="px-4 py-3">
+                              <BookCover
+                                rawCoverUrl={book.rawCoverUrl}
+                                title={book.title}
+                                author={book.author}
+                                isbn={book.isbn}
+                                extension={book.extension}
+                                className="w-12 h-16"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => setSelectedBook(book)}
+                                className="text-left hover:text-primary transition-colors"
+                              >
+                                <div className="font-medium line-clamp-2">{book.title}</div>
+                                {book.series && (
+                                  <div className="text-sm text-muted-foreground">
+                                    Series: {book.series}
+                                  </div>
+                                )}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">{book.author}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{book.year}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{book.pages}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{book.language}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{formatFileSize(book.filesize)}</td>
+                            <td className="px-4 py-3">
+                              <Badge variant="outline" className="text-xs">
+                                {book.extension?.toUpperCase()}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => setSelectedBook(book)}>
+                                    <Eye className="w-4 h-4 mr-2" />
+                                    View Details
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem asChild>
+                                    <div className="w-full">
+                                      <DownloadButton md5={book.md5} title={book.title} />
+                                    </div>
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-6">
+                    {sortedBooks.map((book, index) => (
+                      <motion.div
+                        key={book.md5}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                      >
+                        <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer group" onClick={() => setSelectedBook(book)}>
+                          <CardContent className="p-4">
+                            <div className="flex flex-col h-full">
+                              <div className="flex-shrink-0 mb-4">
+                                <BookCover
+                                  rawCoverUrl={book.rawCoverUrl}
+                                  title={book.title}
+                                  author={book.author}
+                                  isbn={book.isbn}
+                                  extension={book.extension}
+                                  className="w-full h-48 mx-auto"
+                                />
+                              </div>
+                              
+                              <div className="flex-1 space-y-2">
+                                <h3 className="font-semibold line-clamp-2 group-hover:text-primary transition-colors">
+                                  {book.title}
+                                </h3>
+                                <p className="text-sm text-muted-foreground line-clamp-1">
+                                  {book.author}
+                                </p>
+                                
+                                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                  <span>{book.year}</span>
+                                  <Badge variant="outline" className="text-xs">
+                                    {book.extension?.toUpperCase()}
+                                  </Badge>
+                                </div>
+                                
+                                <div className="text-xs text-muted-foreground">
+                                  {book.pages && `${book.pages} pages`}
+                                  {book.pages && book.filesize && ' • '}
+                                  {formatFileSize(book.filesize)}
+                                </div>
+                              </div>
+                              
+                              <div className="mt-4 pt-4 border-t">
+                                <DownloadButton md5={book.md5} title={book.title} />
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+
+                {books.length > 0 && <Pagination />}
+              </CardContent>
+            </Card>
+          )}
+        </main>
+
+        {/* Book Details Modal */}
+        {selectedBook && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-card rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="p-6">
+                <div className="flex items-start justify-between mb-6">
+                  <h2 className="text-2xl font-bold">Book Details</h2>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedBook(null)}
+                  >
+                    <X className="w-5 h-5" />
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-1">
+                    <BookCover
+                      rawCoverUrl={selectedBook.rawCoverUrl}
+                      title={selectedBook.title}
+                      author={selectedBook.author}
+                      isbn={selectedBook.isbn}
+                      extension={selectedBook.extension}
+                      className="w-full h-80 mx-auto"
+                    />
+                  </div>
+
+                  <div className="lg:col-span-2 space-y-6">
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">{selectedBook.title}</h3>
+                      <p className="text-muted-foreground text-lg">{selectedBook.author}</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {[
+                        { label: 'Publisher', value: selectedBook.publisher, icon: Building },
+                        { label: 'Year', value: selectedBook.year, icon: Calendar },
+                        { label: 'Pages', value: selectedBook.pages, icon: FileText },
+                        { label: 'Language', value: selectedBook.language, icon: Languages },
+                        { label: 'File Size', value: formatFileSize(selectedBook.filesize), icon: HardDrive },
+                        { label: 'Format', value: selectedBook.extension?.toUpperCase(), icon: FileType },
+                        { label: 'Series', value: selectedBook.series, icon: BookOpen },
+                        { label: 'ISBN', value: selectedBook.isbn, icon: Hash },
+                      ].map(({ label, value, icon: Icon }) => (
+                        value && (
+                          <div key={label} className="flex items-center gap-3">
+                            <Icon className="w-4 h-4 text-muted-foreground" />
+                            <div>
+                              <div className="text-sm text-muted-foreground">{label}</div>
+                              <div className="font-medium">{value}</div>
+                            </div>
+                          </div>
+                        )
+                      ))}
+                    </div>
+
+                    {selectedBook.tags && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Tag className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">Tags</span>
+                        </div>
+                        <p className="text-sm">{selectedBook.tags}</p>
+                      </div>
+                    )}
+
+                    <div className="pt-4 border-t">
+                      <DownloadButton md5={selectedBook.md5} title={selectedBook.title} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
           </div>
         )}
 
