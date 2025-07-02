@@ -80,7 +80,7 @@ export default async function handler(
     return res.status(405).json({ books: [], error: 'Method not allowed' });
   }
 
-  const { 
+  let { 
     query, 
     count = 25, 
     sort_by = 'def', 
