@@ -80,7 +80,7 @@ export default async function handler(
     return res.status(405).json({ books: [], error: 'Method not allowed' });
   }
 
-  let { 
+  const { 
     query, 
     count = 25, 
     sort_by = 'def', 
@@ -115,6 +115,7 @@ export default async function handler(
     
     // Build search query with topic filtering
     let searchQuery = trimmedQuery;
+    let finalSearchIn = search_in;
     
     // If topic is specified, add it to the search
     if (topic) {
@@ -122,7 +123,7 @@ export default async function handler(
       if (topic.startsWith('topicid')) {
         searchQuery = topic;
         // Override search_in to topic when searching by topic
-        search_in = 'topic';
+        finalSearchIn = 'topic';
       } else {
         // Convert topic name to search term
         searchQuery = `${trimmedQuery} ${topic}`;
@@ -156,7 +157,7 @@ export default async function handler(
       count: Math.min(count, 100), // Allow up to 100 results
       offset,
       sort_by,
-      search_in,
+      search_in: finalSearchIn,
       reverse: Boolean(reverse), // Ensure it's a boolean
     };
 
